@@ -7,12 +7,15 @@ const allUsers = () => executeQuery("SELECT * FROM users");
 
 const allVolunteerUsers = () =>
   executeQuery(`SELECT * FROM users WHERE role IN ('VOLUNTARIO', 'AMBOS')`);
+
 const allHelpMeUsers = () =>
   executeQuery(
     `SELECT * FROM users WHERE role IN ('PRECISO-DE-AJUDA', 'AMBOS')`,
   );
 
 const createUser = async (user) => {
+  const passwordHash = await bcrypt.hash(password, 10);
+  await validateCreateUser(user);
   const query = `
     INSERT INTO users (
       name,
@@ -38,7 +41,7 @@ const createUser = async (user) => {
     user.name,
     user.phone,
     user.email,
-    user.password || null,
+    passwordHash || null,
     user.is_ghost ?? false,
     user.address,
     user.city,
@@ -84,7 +87,7 @@ const createRequest = async (request) => {
   `;
 
   const values = [
-    request.requester_id,
+    request.user.id,
     request.city,
     request.state,
     request.neighborhood,
