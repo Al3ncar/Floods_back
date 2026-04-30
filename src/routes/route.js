@@ -5,18 +5,24 @@ import validUser from "../validator/joiUser.js";
 import auth from "../auth/auth.js";
 
 const router = Router();
-router.get("/users", useControl.getAll);
-router.post("/users", validUser, useControl.createUser);
-router.put("/users/:id", useControl.roleEditUser);
 
-router.get("/users/volunteer", useControl.getAllVolunteer);
-router.get("/users/help-me", useControl.getAllHelpMe);
+router.post("/login", useControl.login);
+router.get("/api/users", useControl.getAll);
+router.post("/api/users", validUser, useControl.createUser);
+router.put("/api/users/:id", auth, useControl.roleEditUser);
 
-router.get("/requests", useControl.requestsAll);
-router.post("/requests", auth, useControl.createRequest);
-router.put("/requests/:id", useControl.editRequest);
-router.delete("/requests/:id", useControl.removeRequest);
+router.get("/api/users/volunteer", useControl.getAllVolunteer);
+router.get("/api/users/help-me", useControl.getAllHelpMe);
 
-router.post("/requests/:id/applications", useControl.removeRequest);
+router.get("/api/requests", useControl.requestsAll);
+router.post("/api/requests", auth, useControl.createRequest);
+router.put("/api/requests/:id", auth, useControl.editRequest);
+router.delete("/api/requests/:id", auth, useControl.removeRequest);
+
+router.post(
+  "/api/requests/:id/applications",
+  auth,
+  useControl.createApplication,
+);
 
 export default router;

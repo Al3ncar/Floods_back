@@ -30,6 +30,14 @@ const createApplication = async (req, res) =>
     "Solicitação Enviada com sucesso!",
   );
 
+const login = async (req, res) =>
+  createdData(
+    req,
+    res,
+    useModels.findUserByEmail(req.body),
+    "Solicitação Enviada com sucesso!",
+  );
+
 const roleEditUser = async (req, res) => {
   try {
     const user = await useModels.changeRoleUser(req.body, req.params.id);
@@ -79,4 +87,5 @@ export default {
   removeRequest,
   editRequest,
   createApplication,
+  login,
 };

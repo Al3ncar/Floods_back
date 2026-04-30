@@ -54,6 +54,7 @@ const createUser = async (user) => {
   const result = await pool.query(query, values);
   return result.rows[0];
 };
+
 const changeRoleUser = async (user, id) => {
   console.log(user, id);
   const query = `
@@ -95,7 +96,7 @@ const createRequest = async (request) => {
     request.need_type,
     request.description || null,
     request.urgency,
-    request.status || "OPEN",
+    request.status || "ABERTO",
     request.occurrence_lat || null,
     request.occurrence_lng || null,
   ];
@@ -183,6 +184,35 @@ const createApplication = async (application) => {
   return result.rows[0];
 };
 
+const findUserByEmail = async (user) => {
+  const query = `
+    SELECT id, name, email, password, role
+    FROM users WHERE email = $1
+  `;
+
+  const result = await pool.query(query, [user.email]);
+
+  const dbUser = result.rows[0];
+  if (!dbUser) throw new Error("Email ou senha inválidos");
+  
+  const isMatch = await bcrypt.compare(user.password, dbUser.password);
+  if (!isMatch) throw new Error("Email ou senha inválidos");
+
+  const token = jwt.sign({ id: result.rows[0].id }, process.env.JWT_SECRET, {
+    expiresIn: "1h",
+  });
+
+  return {
+    user: {
+      id: dbUser.id,
+      name: dbUser.name,
+      email: dbUser.email,
+      role: dbUser.role,
+    },
+    token,
+  };
+};
+
 export default {
   changeRoleUser,
   createUser,
@@ -194,4 +224,5 @@ export default {
   deleteRequest,
   updateRequest,
   createApplication,
+  findUserByEmail,
 };
