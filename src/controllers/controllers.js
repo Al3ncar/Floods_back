@@ -1,49 +1,90 @@
 import useModels from "../models/models.js";
 import { getAllControl, createdData } from "../utils/useControllers.js";
 
-const getAll = (req, res) => getAllControl(req, res, useModels.allUsers());
-const getAllVolunteer = (req, res) =>
-  getAllControl(req, res, useModels.allVolunteerUsers());
-const getAllHelpMe = (req, res) =>
-  getAllControl(req, res, useModels.allHelpMeUsers());
-const requestsAll = (req, res) => getAllControl(req, res, useModels.requests());
+const getAll = (req, res) => () =>
+  getAllControl(req, res, useModels.allUsers(req.query.type));
 
-const createUser = async (req, res) =>
-  createdData(
-    req,
-    res,
-    useModels.createUser(req.body),
-    "Usuario criado com sucesso!",
-  );
-const createRequest = async (req, res) =>
-  createdData(
-    req,
-    res,
-    useModels.createRequest(req.body),
-    "Solicitação criada com sucesso!",
-  );
-const createApplication = async (req, res) =>
-  createdData(
-    req,
-    res,
-    useModels.createApplication(req.body),
-    "Solicitação Enviada com sucesso!",
-  );
+const requestsAll = (req, res) => () =>
+  getAllControl(req, res, useModels.requests());
 
 const login = async (req, res) =>
   createdData(
     req,
     res,
+    200,
+    "Ação realizada com sucesso!",
     useModels.findUserByEmail(req.body),
-    "Solicitação Enviada com sucesso!",
+  );
+const createUser = async (req, res) =>
+  createdData(
+    req,
+    res,
+    201,
+    "Usuario criado com sucesso!",
+    useModels.createUser(req.body),
+  );
+const createRequest = async (req, res) =>
+  createdData(
+    req,
+    res,
+    201,
+    "Solicitação criada com sucesso!",
+    useModels.createRequest(req.body),
   );
 
-const roleEditUser = async (req, res) => {
+const deleteUser = async (req, res) => {
   try {
-    const user = await useModels.changeRoleUser(req.body, req.params.id);
+    const userId = Number(req.params.id);
 
-    return res.status(201).json({
-      message: "Usuario alterado com sucesso!",
+    if (req.user.id !== userId) {
+      return res.status(403).json({
+        message: "Você não tem permissão para deletar este usuário",
+      });
+    }
+
+    const user = await useModels.deleteUser(userId);
+
+    return res.status(200).json({
+      message: "Ação realizada com sucesso!",
+      user,
+    });
+  } catch (err) {
+    return res.status(400).json({
+      message: err.message,
+    });
+  }
+};
+
+const createApplication = async (req, res) => {
+  try {
+    const request_id = Number(req.params.id);
+    const volunteer_id = req.user.id;
+
+    const application = await applicationService.createApplication({
+      request_id,
+      volunteer_id,
+    });
+
+    return res.status(201).json(application);
+  } catch (err) {
+    return res.status(400).json({ message: err.message });
+  }
+};
+
+const editUserData = async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+
+    if (req.user.id !== userId) {
+      return res.status(403).json({
+        message: "Você não tem permissão para editar este usuário",
+      });
+    }
+
+    const user = await useModels.changeUserData(req.body, userId);
+
+    return res.status(200).json({
+      message: "Usuário alterado com sucesso!",
       data: user,
     });
   } catch (err) {
@@ -78,14 +119,13 @@ const removeRequest = async (req, res) => {
 
 export default {
   getAll,
-  getAllVolunteer,
-  getAllHelpMe,
   createUser,
-  roleEditUser,
+  editUserData,
   requestsAll,
   createRequest,
   removeRequest,
   editRequest,
   createApplication,
   login,
+  deleteUser,
 };
