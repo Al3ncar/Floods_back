@@ -1,21 +1,35 @@
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import pool from "../config/db.js";
 import { executeQuery } from "../utils/modelsQueryRun.js";
-import { validateVolunteer } from "../service/service.js";
+import { validateVolunteer, validateCreateUser } from "../service/service.js";
 
 const requests = () => executeQuery("SELECT * FROM requests");
-const allUsers = () => executeQuery("SELECT * FROM users");
 
-const allVolunteerUsers = () =>
-  executeQuery(`SELECT * FROM users WHERE role IN ('VOLUNTARIO', 'AMBOS')`);
+const allUsers = async (type) => {
+  const filters = {
+    helpers: "can_help = TRUE",
+    requesters: "can_request_help = TRUE",
+    both: "can_help = TRUE AND can_request_help = TRUE",
+  };
 
-const allHelpMeUsers = () =>
-  executeQuery(
-    `SELECT * FROM users WHERE role IN ('PRECISO-DE-AJUDA', 'AMBOS')`,
-  );
+  let query = "SELECT * FROM users";
+
+  if (type && filters[type]) {
+    query += ` WHERE ${filters[type]}`;
+  }
+
+  const result = await pool.query(query);
+  return result.rows;
+};
 
 const createUser = async (user) => {
-  const passwordHash = await bcrypt.hash(password, 10);
   await validateCreateUser(user);
+
+  const passwordHash = user.password
+    ? await bcrypt.hash(user.password, 12)
+    : null;
+
   const query = `
     INSERT INTO users (
       name,
@@ -28,11 +42,12 @@ const createUser = async (user) => {
       state,
       latitude,
       longitude,
-      role
+      can_help,
+      can_request_help
     ) VALUES (
       $1, $2, $3, $4, $5,
       $6, $7, $8, $9, $10,
-      $11
+      $11, $12
     )
     RETURNING *;
   `;
@@ -41,31 +56,103 @@ const createUser = async (user) => {
     user.name,
     user.phone,
     user.email,
-    passwordHash || null,
+    passwordHash,
     user.is_ghost ?? false,
     user.address,
     user.city,
     user.state,
-    user.latitude || null,
-    user.longitude || null,
-    user.role,
+    user.latitude ?? null,
+    user.longitude ?? null,
+    user.can_help ?? false,
+    user.can_request_help ?? false,
   ];
 
   const result = await pool.query(query, values);
   return result.rows[0];
 };
 
-const changeRoleUser = async (user, id) => {
-  console.log(user, id);
+const changeUserData = async (data, id) => {
+  const allowed = [
+    "name",
+    "phone",
+    "email",
+    "password",
+    "address",
+    "city",
+    "state",
+    "latitude",
+    "longitude",
+  ];
+
+  const entries = await Promise.all(
+    Object.entries(data)
+      .filter(([key]) => allowed.includes(key))
+      .map(async ([key, value]) => [
+        key,
+        key === "password" ? await bcrypt.hash(value, 10) : value,
+      ]),
+  );
+
+  if (entries.length === 0) {
+    throw new Error("Nenhum campo para atualizar");
+  }
+
+  const fields = entries.map(([key], i) => `${key} = $${i + 1}`);
+  const values = entries.map(([, value]) => value);
+
   const query = `
-    UPDATE users SET role=$1
-    WHERE id=$2 RETURNING *;
+    UPDATE users
+    SET ${fields.join(", ")}
+    WHERE id = $${values.length + 1}
+    RETURNING id, name, email, role, city, state;
   `;
-  const result = await pool.query(query, [user.role, id]);
+
+  const result = await pool.query(query, [...values, id]);
+
+  if (result.rowCount === 0) {
+    throw new Error("Usuário não encontrado");
+  }
+
+  return result.rows[0];
+};
+
+const deleteUser = async (id) => {
+  const query = `
+    DELETE FROM users
+    WHERE id = $1
+    RETURNING *;
+  `;
+
+  const result = await pool.query(query, [id]);
+
+  if (result.rowCount === 0) {
+    throw new Error("Usuário não encontrado");
+  }
+
+  return result.rows[0];
+};
+
+const updateUserPreferences = async (user, id) => {
+  const query = `
+    UPDATE users
+    SET
+      can_help = $1,
+      can_request_help = $2
+    WHERE id = $3
+    RETURNING *;
+  `;
+
+  const values = [user.can_help ?? false, user.can_request_help ?? false, id];
+
+  const result = await pool.query(query, values);
   return result.rows[0];
 };
 
 const createRequest = async (request) => {
+  if (!request.user.can_request_help) {
+    throw new Error("Você não pode criar solicitações");
+  }
+
   const query = `
     INSERT INTO requests (
       requester_id,
@@ -94,11 +181,11 @@ const createRequest = async (request) => {
     request.neighborhood,
     request.street,
     request.need_type,
-    request.description || null,
+    request.description ?? null,
     request.urgency,
-    request.status || "ABERTO",
-    request.occurrence_lat || null,
-    request.occurrence_lng || null,
+    request.status ?? "ABERTO",
+    request.occurrence_lat ?? null,
+    request.occurrence_lng ?? null,
   ];
 
   const result = await pool.query(query, values);
@@ -186,43 +273,50 @@ const createApplication = async (application) => {
 
 const findUserByEmail = async (user) => {
   const query = `
-    SELECT id, name, email, password, role
+    SELECT id, name, email, password, can_help, can_request_help
     FROM users WHERE email = $1
   `;
 
   const result = await pool.query(query, [user.email]);
-
   const dbUser = result.rows[0];
+
   if (!dbUser) throw new Error("Email ou senha inválidos");
-  
+
   const isMatch = await bcrypt.compare(user.password, dbUser.password);
   if (!isMatch) throw new Error("Email ou senha inválidos");
 
-  const token = jwt.sign({ id: result.rows[0].id }, process.env.JWT_SECRET, {
-    expiresIn: "1h",
-  });
+  const token = jwt.sign(
+    {
+      id: dbUser.id,
+      can_help: dbUser.can_help,
+      can_request_help: dbUser.can_request_help,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "1h" },
+  );
 
   return {
     user: {
       id: dbUser.id,
       name: dbUser.name,
       email: dbUser.email,
-      role: dbUser.role,
+      can_help: dbUser.can_help,
+      can_request_help: dbUser.can_request_help,
     },
     token,
   };
 };
 
 export default {
-  changeRoleUser,
+  updateUserPreferences,
   createUser,
+  changeUserData,
   allUsers,
-  allVolunteerUsers,
-  allHelpMeUsers,
   requests,
   createRequest,
   deleteRequest,
   updateRequest,
   createApplication,
   findUserByEmail,
+  deleteUser,
 };
