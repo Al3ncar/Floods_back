@@ -8,10 +8,16 @@ const getAllControl = async (req, res, useModels) => {
   }
 };
 
-const createdData = async (req, res, actionModels = () => {}, msg) => {
+const createdData = async (
+  req,
+  res,
+  cod,
+  msg,
+  actionModels = () => {},
+) => {
   try {
-    const data = await actionModels;
-    return res.status(201).json({ message: msg, data: data });
+    const [data, codDefault] = [await actionModels, cod || 201];
+    return res.status(cod).json({ message: msg, data: data });
   } catch (err) {
     console.log(err);
     return res.status(400).json({ error: err.message });
