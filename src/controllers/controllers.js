@@ -1,11 +1,10 @@
 import useModels from "../models/models.js";
 import { getAllControl, createdData } from "../utils/useControllers.js";
 
-const getAll = (req, res) => () =>
+const getAll = (req, res) =>
   getAllControl(req, res, useModels.allUsers(req.query.type));
 
-const requestsAll = (req, res) => () =>
-  getAllControl(req, res, useModels.requests());
+const requestsAll = (req, res) => getAllControl(req, res, useModels.requests());
 
 const login = async (req, res) =>
   createdData(
@@ -29,20 +28,12 @@ const createRequest = async (req, res) =>
     res,
     201,
     "Solicitação criada com sucesso!",
-    useModels.createRequest(req.body),
+    useModels.createRequest(req.body, req.user),
   );
 
 const deleteUser = async (req, res) => {
   try {
-    const userId = Number(req.params.id);
-
-    if (req.user.id !== userId) {
-      return res.status(403).json({
-        message: "Você não tem permissão para deletar este usuário",
-      });
-    }
-
-    const user = await useModels.deleteUser(userId);
+    const user = await useModels.deleteUser(req);
 
     return res.status(200).json({
       message: "Ação realizada com sucesso!",
@@ -81,7 +72,7 @@ const editUserData = async (req, res) => {
       });
     }
 
-    const user = await useModels.changeUserData(req.body, userId);
+    const user = await useModels.editUserData(req.body, userId);
 
     return res.status(200).json({
       message: "Usuário alterado com sucesso!",
@@ -94,7 +85,7 @@ const editUserData = async (req, res) => {
 
 const editRequest = async (req, res) => {
   try {
-    const user = await useModels.updateRequest(req.body, req.params.id);
+    const user = await useModels.updateRequest(req, req.params.id);
     return res.status(200).json({
       message: "Solicitação ALTERADA com sucesso!",
       data: user,

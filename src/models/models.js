@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import pool from "../config/db.js";
-import { executeQuery } from "../utils/modelsQueryRun.js";
+import { executeQuery } from "../utils/models-query-run.js";
 import { validateVolunteer, validateCreateUser } from "../service/service.js";
 
 const requests = () => executeQuery("SELECT * FROM requests");
@@ -71,7 +71,7 @@ const createUser = async (user) => {
   return result.rows[0];
 };
 
-const changeUserData = async (data, id) => {
+const editUserData = async (data, id) => {
   const allowed = [
     "name",
     "phone",
@@ -116,7 +116,15 @@ const changeUserData = async (data, id) => {
   return result.rows[0];
 };
 
-const deleteUser = async (id) => {
+const deleteUser = async (req) => {
+  const userId = Number(req.params.id);
+
+  if (req.user.id !== userId) {
+    return res.status(403).json({
+      message: "Você não tem permissão para deletar este usuário",
+    });
+  }
+
   const query = `
     DELETE FROM users
     WHERE id = $1
@@ -148,8 +156,8 @@ const updateUserPreferences = async (user, id) => {
   return result.rows[0];
 };
 
-const createRequest = async (request) => {
-  if (!request.user.can_request_help) {
+const createRequest = async (request, user) => {
+  if (!user.can_request_help) {
     throw new Error("Você não pode criar solicitações");
   }
 
@@ -173,9 +181,8 @@ const createRequest = async (request) => {
     )
     RETURNING *;
   `;
-
   const values = [
-    request.user.id,
+    user.id,
     request.city,
     request.state,
     request.neighborhood,
@@ -209,7 +216,14 @@ const deleteRequest = async (id) => {
   return result.rows[0];
 };
 
-const updateRequest = async (request, id) => {
+const updateRequest = async (req, id) => {
+  const request = req.body;
+  if (req.user.id !== userId) {
+    return res.status(403).json({
+      message: "Você não tem permissão para deletar este usuário",
+    });
+  }
+
   const query = `
     UPDATE requests
     SET
@@ -310,7 +324,7 @@ const findUserByEmail = async (user) => {
 export default {
   updateUserPreferences,
   createUser,
-  changeUserData,
+  editUserData,
   allUsers,
   requests,
   createRequest,
