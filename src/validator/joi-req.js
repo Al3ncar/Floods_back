@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { validUserAndRequest } from "../utils/joiValidator.js";
+import { validUserAndRequest } from "../utils/joi-valid.js";
 
 const requestSchema = Joi.object({
   city: Joi.string().max(100).required().messages({

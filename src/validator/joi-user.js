@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { validUserAndRequest } from "../utils/joiValidator.js";
+import { validUserAndRequest } from "../utils/joi-valid.js";
 
 const userSchema = Joi.object({
   name: Joi.string().min(3).max(150).required().messages({
