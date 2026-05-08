@@ -2,7 +2,11 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import pool from "../config/db.js";
 import { executeQuery } from "../utils/models-query-run.js";
-import { validateVolunteer, validateCreateUser } from "../service/service.js";
+import {
+  validateVolunteer,
+  validateCreateUser,
+  validCreatedApplications,
+} from "../service/service.js";
 
 const requests = () => executeQuery("SELECT * FROM requests");
 
@@ -42,14 +46,27 @@ const createUser = async (user) => {
       state,
       latitude,
       longitude,
+      type_help,
       can_help,
-      can_request_help
+      can_request_help,
+      observation
     ) VALUES (
       $1, $2, $3, $4, $5,
       $6, $7, $8, $9, $10,
-      $11, $12
+      $11, $12, $13, $14
     )
-    RETURNING *;
+    RETURNING
+      id,
+      name,
+      email,
+      phone,
+      city,
+      state,
+      type_help,
+      can_help,
+      can_request_help,
+      observation,
+      created_at;
   `;
 
   const values = [
@@ -63,12 +80,15 @@ const createUser = async (user) => {
     user.state,
     user.latitude ?? null,
     user.longitude ?? null,
+    user.type_help,
     user.can_help ?? false,
     user.can_request_help ?? false,
+    user.observation ?? null,
   ];
 
-  const result = await pool.query(query, values);
-  return result.rows[0];
+  const { rows } = await pool.query(query, values);
+
+  return rows[0];
 };
 
 const editUserData = async (data, id) => {
@@ -80,6 +100,7 @@ const editUserData = async (data, id) => {
     "address",
     "city",
     "state",
+    "observation",
     "latitude",
     "longitude",
   ];
@@ -104,7 +125,7 @@ const editUserData = async (data, id) => {
     UPDATE users
     SET ${fields.join(", ")}
     WHERE id = $${values.length + 1}
-    RETURNING id, name, email, role, city, state;
+    RETURNING id, name, email, role, city, state, observation;
   `;
 
   const result = await pool.query(query, [...values, id]);
@@ -264,24 +285,20 @@ const updateRequest = async (req, id) => {
   return result.rows[0];
 };
 
-const createApplication = async (application) => {
-  const { request_id, volunteer_id } = application;
-
-  await validateVolunteer(volunteer_id);
+const createApplication = async ({ request_id, volunteer_id }) => {
+  await validCreatedApplications(request_id, volunteer_id);
 
   const query = `
     INSERT INTO applications (
       request_id,
       volunteer_id
-    ) VALUES (
-      $1, $2
     )
+    VALUES ($1, $2)
     RETURNING *;
   `;
 
-  const values = [request_id, volunteer_id];
+  const result = await pool.query(query, [request_id, volunteer_id]);
 
-  const result = await pool.query(query, values);
   return result.rows[0];
 };
 
@@ -321,9 +338,52 @@ const findUserByEmail = async (user) => {
   };
 };
 
+const getApplicationsByRequest = async (requestId, userId) => {
+  const requestQuery = `
+    SELECT requester_id
+    FROM requests
+    WHERE id = $1
+  `;
+
+  const requestResult = await pool.query(requestQuery, [requestId]);
+  const request = requestResult.rows[0];
+
+  if (!request) {
+    throw new Error("Solicitação não encontrada");
+  }
+
+  if (request.requester_id !== userId) {
+    throw new Error("Você não tem permissão para visualizar candidatos");
+  }
+
+  const query = `
+    SELECT
+      applications.id AS application_id,
+      applications.created_at,
+      users.id,
+      users.name,
+      users.phone,
+      users.city,
+      users.state,
+      users.type_help,
+      users.observation
+    FROM applications
+    INNER JOIN users
+      ON users.id = applications.volunteer_id
+    WHERE applications.request_id = $1
+    ORDER BY applications.created_at DESC;
+  `;
+
+  const result = await pool.query(query, [requestId]);
+
+  return result.rows;
+};
+
 export default {
-  updateUserPreferences,
+  findUserByEmail,
   createUser,
+  deleteUser,
+  updateUserPreferences,
   editUserData,
   allUsers,
   requests,
@@ -331,6 +391,5 @@ export default {
   deleteRequest,
   updateRequest,
   createApplication,
-  findUserByEmail,
-  deleteUser,
+  getApplicationsByRequest,
 };
