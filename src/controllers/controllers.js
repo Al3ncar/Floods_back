@@ -1,6 +1,5 @@
 import useModels from "../models/models.js";
 import { getAllControl, createdData } from "../utils/useControllers.js";
-
 const getAll = (req, res) =>
   getAllControl(req, res, useModels.allUsers(req.query.type));
 
@@ -48,15 +47,16 @@ const deleteUser = async (req, res) => {
 
 const createApplication = async (req, res) => {
   try {
-    const request_id = Number(req.params.id);
-    const volunteer_id = req.user.id;
-
-    const application = await applicationService.createApplication({
+    const [request_id, volunteer_id] = [Number(req.params.id), req.user.id];
+    const application = await useModels.createApplication({
       request_id,
       volunteer_id,
     });
 
-    return res.status(201).json(application);
+    return res.status(201).json({
+      message: "Ação realizada com sucesso!",
+      data: application,
+    });
   } catch (err) {
     return res.status(400).json({ message: err.message });
   }
@@ -108,6 +108,23 @@ const removeRequest = async (req, res) => {
   }
 };
 
+const getApplicationsByRequest = async (req, res) => {
+  try {
+    const requestId = Number(req.params.id);
+
+    const applications = await useModels.getApplicationsByRequest(
+      requestId,
+      req.user.id,
+    );
+
+    return res.status(200).json(applications);
+  } catch (err) {
+    return res.status(400).json({
+      message: err.message,
+    });
+  }
+};
+
 export default {
   getAll,
   createUser,
@@ -119,4 +136,5 @@ export default {
   createApplication,
   login,
   deleteUser,
+  getApplicationsByRequest,
 };
