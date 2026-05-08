@@ -51,11 +51,20 @@ const userSchema = Joi.object({
     "number.min": "Longitude inválida",
     "number.max": "Longitude inválida",
   }),
+  type_help: Joi.string().max(255).min(5).required().messages({
+    "string.empty": "O tipo de ajuda é obrigatório",
+    "string.min": "O tipo de ajuda deve ter pelo menos 5 caracteres",
+    "string.max": "O tipo de ajuda deve ter no máximo 255 caracteres",
+    "any.required": "O tipo de ajuda é obrigatório",
+  }),
   can_help: Joi.boolean().default(false).messages({
     "boolean.base": "can_help deve ser verdadeiro ou falso",
   }),
   can_request_help: Joi.boolean().default(false).messages({
     "boolean.base": "can_request_help deve ser verdadeiro ou falso",
+  }),
+  observation: Joi.string().max(500).allow(null, "").messages({
+    "string.max": "A observação deve ter no máximo 500 caracteres",
   }),
 })
   .custom((value, helpers) => {
