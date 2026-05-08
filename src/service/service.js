@@ -43,4 +43,37 @@ const validateRequestPermission = (request) => {
   }
 };
 
-export { validateVolunteer, validateCreateUser, validateRequestPermission };
+const validCreatedApplications = async (request_id, volunteer_id) => {
+  const existingApplication = await pool.query(
+    `
+      SELECT id
+      FROM applications
+      WHERE request_id = $1
+      AND volunteer_id = $2
+    `,
+    [request_id, volunteer_id],
+  );
+
+  if (existingApplication.rowCount > 0) {
+    throw new Error("Você já se candidatou para esta solicitação");
+  }
+
+  const requestExists = await pool.query(
+    `
+      SELECT id
+      FROM requests
+      WHERE id = $1
+    `,
+    [request_id],
+  );
+
+  if (requestExists.rowCount === 0) {
+    throw new Error("Solicitação não encontrada");
+  }
+};
+export {
+  validateVolunteer,
+  validateCreateUser,
+  validateRequestPermission,
+  validCreatedApplications,
+};
